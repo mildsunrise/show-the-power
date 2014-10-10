@@ -142,6 +142,8 @@ socket.on("header", function(header) {
   samplingTime = header.samplingTime;
   windowSpanTime = samplingTime * windowSpan;
   windowPreTime  = samplingTime * windowPre;
+
+  data = [];
 });
 
 socket.on("power", paint);
