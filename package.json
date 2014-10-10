@@ -1,0 +1,10 @@
+{ "name": "show-the-power"
+, "version": "0.0.0"
+, "private": true
+
+, "author": "Xavier Mendez <me@jmendeth.com>"
+
+, "dependencies": { "express": "4"
+                  , "socket.io": ">= 0.0.0"
+                  }
+}

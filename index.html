@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script>
+
+// Graph parameters
+var width = 800, height = 160;
+var margin = 30;
+
+var windowSpan = 90; // Number of visible samples
+var windowPre = 2;   // Samples kept on the right of the graph
+var windowPost = 2;  // Samples kept on the left of the graph
+var yMult = 1.05;    // Multiply maximum power by this to get the display limit
+var yTicks = 10;     // Approximate number of ticks for the Y axis
+var smoothLines = false; // Wether line should be spline-interpolated
+
+</script>
+<style>
+
+body {
+  font: 13px sans-serif;
+}
+
+svg {
+  font: 10px sans-serif;
+}
+
+.line {
+  fill: none;
+  stroke: #000;
+  stroke-width: 1.5px;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+</style>
+<body>
+
+  <h1>Power consumption</h1>
+  
+  <p>The following graph shows the realtime power consumption as reported by the RAPL device. Power is in Watts.</p>
+  
+  <div id="graph"></div>
+
+<script src="/d3.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+
+// General layout
+
+var svg = d3.select("body").append("svg")
+  .attr("width", width + 2*margin)
+  .attr("height", height + 2*margin)
+;
+
+var graph = svg.append("g")
+  .attr("transform", "translate(" + margin + "," + margin + ")")
+;
+
+graph.append("g").attr("class", "axis x").attr("transform", "translate(0," + height + ")");
+graph.append("g").attr("class", "axis y").attr("transform", "translate(" + width + ",0)");
+
+svg.append("defs").append("clipPath")
+  .attr("id", "clip")
+  .append("rect")
+    .attr("width", width)
+    .attr("height", height)
+;
+
+graph.append("g")
+  .attr("clip-path", "url(#clip)")
+  .append("path").attr("class", "line")
+;
+
+
+// Initialize data structures
+
+var samplingTime, windowSpanTime, windowPreTime;
+
+var x = d3.time.scale().range([0, width]);
+var y = d3.scale.linear().range([height, 0]);
+var axisX = d3.svg.axis().scale(x);
+var axisY = d3.svg.axis().scale(y).orient("right").ticks(yTicks);
+
+var data = [], buffer = [];
+
+var line = d3.svg.line()
+  .interpolate(smoothLines ? "basis" : "monotone")
+  .x(function(d) { return x(d.time) })
+  .y(function(d) { return y(d.power) })
+;
+
+
+// Painting logic
+
+var running = false;
+function tick() {
+  // Retrieve point from buffer
+  if (buffer.length == 0) {
+    running = false;
+    return;
+  }
+
+  var point = buffer[0];
+  buffer.shift();
+
+  // Add point to data array
+  data.push(point);
+  if (data.length > windowPre + windowSpan + windowPost) data.shift();
+
+  // Redraw everything
+  var endTime = point.time - windowPreTime;
+  x.domain([endTime - windowSpanTime, endTime]);
+  y.domain([0, d3.max(data, function(d) { return d.power; })*yMult]);
+
+  graph.select(".axis.x").call(axisX);
+  graph.select(".axis.y").call(axisY);
+
+  graph.select(".line")
+    .datum(data)
+    .attr("d", line)
+    .attr("transform", null)
+  ;
+
+  // Slide one sample left
+  var t = graph.transition().duration(samplingTime).ease("linear");
+
+  endTime += samplingTime;
+  x.domain([endTime - windowSpanTime, endTime]);
+  t.select(".axis.x").call(axisX);
+
+  t.select(".line")
+    .attr("transform", "translate(" + (x(0)-x(samplingTime)) + ",0)")
+  ;
+
+  // Schedule next call
+  t.selectAll(".line, .axis.x").call(endall, tick);
+}
+
+
+// Server communication
+
+var socket = io();
+
+socket.on("header", function(header) {
+  samplingTime = header.samplingTime;
+  windowSpanTime = samplingTime * windowSpan;
+  windowPreTime  = samplingTime * windowPre;
+});
+
+socket.on("power", function(point) {
+  buffer.push(point);
+  console.log(buffer.length);
+  if (buffer.length > 1 && !running) {
+    running = true;
+    tick();
+  }
+});
+
+
+// Utilities
+
+function endall(transition, callback) {
+  var n = 0;
+  transition
+    .each(function() { ++n; })
+    .each("end", function() { if (!--n) callback.apply(this, arguments); });
+}
+
+</script>
