@@ -86,7 +86,7 @@ var y = d3.scale.linear().range([height, 0]);
 var axisX = d3.svg.axis().scale(x);
 var axisY = d3.svg.axis().scale(y).orient("right").ticks(yTicks);
 
-var data = [], buffer = [];
+var data = [];
 
 var line = d3.svg.line()
   .interpolate(smoothLines ? "basis" : "monotone")
@@ -98,19 +98,14 @@ var line = d3.svg.line()
 // Painting logic
 
 var running = false;
-function tick() {
-  // Retrieve point from buffer
-  if (buffer.length == 0) {
-    running = false;
-    return;
-  }
-
-  var point = buffer[0];
-  buffer.shift();
-
+function paint(point) {
   // Add point to data array
   data.push(point);
   if (data.length > windowPre + windowSpan + windowPost) data.shift();
+
+  // Stop transition
+  var t = graph.transition().duration(0);
+  t.select(".line").attr("transform", null);
 
   // Redraw everything
   var endTime = point.time - windowPreTime;
@@ -136,9 +131,6 @@ function tick() {
   t.select(".line")
     .attr("transform", "translate(" + (x(0)-x(samplingTime)) + ",0)")
   ;
-
-  // Schedule next call
-  t.selectAll(".line, .axis.x").call(endall, tick);
 }
 
 
@@ -152,23 +144,6 @@ socket.on("header", function(header) {
   windowPreTime  = samplingTime * windowPre;
 });
 
-socket.on("power", function(point) {
-  buffer.push(point);
-  console.log(buffer.length);
-  if (buffer.length > 1 && !running) {
-    running = true;
-    tick();
-  }
-});
-
-
-// Utilities
-
-function endall(transition, callback) {
-  var n = 0;
-  transition
-    .each(function() { ++n; })
-    .each("end", function() { if (!--n) callback.apply(this, arguments); });
-}
+socket.on("power", paint);
 
 </script>
