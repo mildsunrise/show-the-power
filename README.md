@@ -19,3 +19,7 @@ through the `ENERGY_FILE` environment variable:
 parameters at the top you can tweak.
 
 If you want to change the rate at which the power is read, edit `samplingTime` at `server.js`.
+
+Screenshot of the app with the default parameters:
+
+![App screenshot](http://i.imgur.com/ZuPzddy.png)
